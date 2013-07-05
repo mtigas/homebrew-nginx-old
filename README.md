@@ -29,7 +29,7 @@ the formula cannot technically replace the original one in Homebrew core.
 You can install any of the packages in repo by manually denoting the "tap"
 prefix (mtigas/nginx):
 
-	brew install mtigas/nginx/nginx
+	brew install mtigas/nginx/nginx --devel --with-spdy --with-headersmore
 
 ### Method 2: Raw URL
 

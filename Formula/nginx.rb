@@ -97,7 +97,6 @@ class Nginx < Formula
     else
       system "./configure", *args
     end
-    if 
     system "make"
     system "make install"
     man8.install "objs/nginx.8"
