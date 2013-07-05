@@ -1,7 +1,8 @@
 # homebrew-nginx
 
 This repository contains **[nginx][nginx]-related** formulae for [Homebrew][brew],
-primarily so that users can use the [HttpHeadersMoreModule][headersmore].
+primarily so that users can use the [HttpHeadersMoreModule][headersmore] and
+the [substitions_filter module][subs].
 
 **You will need to [install Homebrew][brew_install] to use this**, see [here][brew_install].
 
@@ -12,6 +13,7 @@ Currently contains replacement (or new) formulae for:
 [nginx]: http://nginx.org/
 [brew]: http://mxcl.github.com/homebrew/
 [headersmore]: http://wiki.nginx.org/HttpHeadersMoreModule
+[subs]: https://github.com/yaoweibin/ngx_http_substitutions_filter_module
 [brew_install]: https://github.com/mxcl/homebrew/wiki/installation
 
 ## Usage
@@ -29,7 +31,7 @@ the formula cannot technically replace the original one in Homebrew core.
 You can install any of the packages in repo by manually denoting the "tap"
 prefix (mtigas/nginx):
 
-	brew install mtigas/nginx/nginx --devel --with-spdy --with-headersmore
+	brew install mtigas/nginx/nginx --devel --with-spdy --with-headersmore --with-subs
 
 ### Method 2: Raw URL
 

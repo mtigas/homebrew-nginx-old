@@ -20,6 +20,7 @@ class Nginx < Formula
   option 'with-spdy', 'Compile with support for SPDY module'
   option 'with-gunzip', 'Compile with support for gunzip module'
   option 'with-headersmore', 'Compile with support for ngx_headers_more module'
+  option 'with-subs', 'Compile with support for ngx_substitutions_filter module'
 
   depends_on 'pcre'
   # SPDY needs openssl >= 1.0.1 for NPN; see:
@@ -66,6 +67,15 @@ class Nginx < Formula
       end
     end
 
+    if build.with? 'subs'
+      cd '/tmp' do
+        rm_rf "ngx_http_substitutions_filter_module-0.6.2"
+        rm_rf "ngx_http_substitutions_filter_module-0.6.2.tar.gz"
+        curl '-s', '-o', 'ngx_http_substitutions_filter_module-0.6.2.tar.gz', 'https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/0.6.2.tar.gz'
+        system "tar", ['-xzf', 'ngx_http_substitutions_filter_module-0.6.2.tar.gz']
+      end
+    end
+
     args = ["--prefix=#{prefix}",
             "--with-http_ssl_module",
             "--with-pcre",
@@ -91,6 +101,7 @@ class Nginx < Formula
     args << "--with-http_spdy_module" if build.include? 'with-spdy'
     args << "--with-http_gunzip_module" if build.include? 'with-gunzip'
     args << "--add-module=/tmp/headers-more-nginx-module-0.21" if build.include? 'with-headersmore'
+    args << "--add-module=/tmp/ngx_http_substitutions_filter_module-0.6.2" if build.include? 'with-subs'
 
     if build.head?
       system "./auto/configure", *args
@@ -104,6 +115,9 @@ class Nginx < Formula
 
     if build.with? 'headersmore'
       rm_rf "/tmp/headers-more-nginx-module-0.21"
+    end
+    if build.with? 'subs'
+      rm_rf "/tmp/ngx_http_substitutions_filter_module-0.6.2"
     end
 
     # nginx’s docroot is #{prefix}/html, this isn't useful, so we symlink it
