@@ -2,12 +2,12 @@ require 'formula'
 
 class Nginx < Formula
   homepage 'http://nginx.org/'
-  url 'http://nginx.org/download/nginx-1.4.1.tar.gz'
-  sha1 '9c72838973572323535dae10f4e412d671b27a7e'
+  url 'http://nginx.org/download/nginx-1.4.4.tar.gz'
+  sha1 '304d5991ccde398af2002c0da980ae240cea9356'
 
   devel do
-    url 'http://nginx.org/download/nginx-1.5.2.tar.gz'
-    sha1 '3546be28a72251f8823ab6be6a1180d300d06f76'
+    url 'http://nginx.org/download/nginx-1.5.7.tar.gz'
+    sha1 '4dd04c73c3081277fe9c98c4a386c8baf956f5ca'
   end
 
   head 'http://hg.nginx.org/nginx/', :using => :hg
@@ -23,17 +23,13 @@ class Nginx < Formula
   option 'with-subs', 'Compile with support for ngx_substitutions_filter module'
 
   depends_on 'pcre'
+  depends_on 'passenger' => :optional
   # SPDY needs openssl >= 1.0.1 for NPN; see:
   # https://tools.ietf.org/agenda/82/slides/tls-3.pdf
   # http://www.openssl.org/news/changelog.html
   depends_on 'openssl' if build.with? 'spdy'
 
   skip_clean 'logs'
-
-  # Changes default port to 8080
-  def patches
-    DATA
-  end
 
   def passenger_config_args
     passenger_root = `passenger-config --root`.chomp
@@ -49,6 +45,9 @@ class Nginx < Formula
   end
 
   def install
+    # Changes default port to 8080
+    inreplace 'conf/nginx.conf', 'listen       80;', 'listen       8080;'
+
     cc_opt = "-I#{HOMEBREW_PREFIX}/include"
     ld_opt = "-L#{HOMEBREW_PREFIX}/lib"
 
@@ -60,10 +59,10 @@ class Nginx < Formula
 
     if build.with? 'headersmore'
       cd '/tmp' do
-        rm_rf "headers-more-nginx-module-0.21"
-        rm_rf "headers-more-nginx-module-0.21.tar.gz"
-        curl '-s', '-o', 'headers-more-nginx-module-0.21.tar.gz', 'https://github.com/agentzh/headers-more-nginx-module/archive/v0.21.tar.gz'
-        system "tar", ['-xzf', 'headers-more-nginx-module-0.21.tar.gz']
+        rm_rf "headers-more-nginx-module-0.23"
+        rm_rf "headers-more-nginx-module-0.23.tar.gz"
+        curl '-L', '-s', '-o', 'headers-more-nginx-module-0.23.tar.gz', 'https://github.com/agentzh/headers-more-nginx-module/archive/v0.23.tar.gz'
+        system "tar", ['-xzf', 'headers-more-nginx-module-0.23.tar.gz']
       end
     end
 
@@ -91,7 +90,8 @@ class Nginx < Formula
             "--http-fastcgi-temp-path=#{var}/run/nginx/fastcgi_temp",
             "--http-uwsgi-temp-path=#{var}/run/nginx/uwsgi_temp",
             "--http-scgi-temp-path=#{var}/run/nginx/scgi_temp",
-            "--http-log-path=#{var}/log/nginx",
+            "--http-log-path=#{var}/log/nginx/access.log",
+            "--error-log-path=#{var}/log/nginx/error.log",
             "--with-http_gzip_static_module"
           ]
 
@@ -100,7 +100,7 @@ class Nginx < Formula
     args << "--with-debug" if build.include? 'with-debug'
     args << "--with-http_spdy_module" if build.include? 'with-spdy'
     args << "--with-http_gunzip_module" if build.include? 'with-gunzip'
-    args << "--add-module=/tmp/headers-more-nginx-module-0.21" if build.include? 'with-headersmore'
+    args << "--add-module=/tmp/headers-more-nginx-module-0.23" if build.include? 'with-headersmore'
     args << "--add-module=/tmp/ngx_http_substitutions_filter_module-0.6.2" if build.include? 'with-subs'
 
     if build.head?
@@ -112,13 +112,6 @@ class Nginx < Formula
     system "make install"
     man8.install "objs/nginx.8"
     (var/'run/nginx').mkpath
-
-    if build.with? 'headersmore'
-      rm_rf "/tmp/headers-more-nginx-module-0.21"
-    end
-    if build.with? 'subs'
-      rm_rf "/tmp/ngx_http_substitutions_filter_module-0.6.2"
-    end
 
     # nginx’s docroot is #{prefix}/html, this isn't useful, so we symlink it
     # to #{HOMEBREW_PREFIX}/var/www. The reason we symlink instead of patching
@@ -147,17 +140,30 @@ class Nginx < Formula
     end
   end
 
-  def caveats; <<-EOS.undent
-    Docroot is: #{HOMEBREW_PREFIX}/var/www
+  test do
+    system "#{bin}/nginx", '-t'
+  end
 
-    The default port has been set to 8080 so that nginx can run without sudo.
+  def passenger_caveats; <<-EOS.undent
 
-    If you want to host pages on your local machine to the wider network you
-    can change the port to 80 in: #{HOMEBREW_PREFIX}/etc/nginx/nginx.conf
-
-    You will then need to run nginx as root: `sudo nginx`.
+    To activate Phusion Passenger, add this to #{etc}/nginx/nginx.conf:
+      passenger_root #{HOMEBREW_PREFIX}/opt/passenger/libexec
+      passenger_ruby /usr/bin/ruby
     EOS
   end
+
+  def caveats
+    s = <<-EOS.undent
+    Docroot is: #{HOMEBREW_PREFIX}/var/www
+
+    The default port has been set in #{HOMEBREW_PREFIX}/etc/nginx/nginx.conf to 8080 so that
+    nginx can run without sudo.
+    EOS
+    s << passenger_caveats if build.include? 'with-passenger'
+    s
+  end
+
+  plist_options :manual => 'nginx'
 
   def plist; <<-EOS.undent
     <?xml version="1.0" encoding="UTF-8"?>
@@ -183,16 +189,3 @@ class Nginx < Formula
     EOS
   end
 end
-
-__END__
---- a/conf/nginx.conf
-+++ b/conf/nginx.conf
-@@ -33,7 +33,7 @@
-     #gzip  on;
-
-     server {
--        listen       80;
-+        listen       8080;
-         server_name  localhost;
-
-         #charset koi8-r;
