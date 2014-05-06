@@ -2,15 +2,22 @@ require 'formula'
 
 class Nginx < Formula
   homepage 'http://nginx.org/'
-  url 'http://nginx.org/download/nginx-1.4.1.tar.gz'
-  sha1 '9c72838973572323535dae10f4e412d671b27a7e'
+  url 'http://nginx.org/download/nginx-1.6.0.tar.gz'
+  sha1 '00eed38652d2cee36cc91a395f6703584658bb23'
+  revision 1
 
   devel do
-    url 'http://nginx.org/download/nginx-1.5.2.tar.gz'
-    sha1 '3546be28a72251f8823ab6be6a1180d300d06f76'
+    url 'http://nginx.org/download/nginx-1.7.0.tar.gz'
+    sha1 'e406cb9f1c17a0d9ff5df926412fce948bfea7de'
   end
 
   head 'http://hg.nginx.org/nginx/', :using => :hg
+
+  bottle do
+    sha1 "0b2a83221a85da1595e52ba61f0bc39a8905db71" => :mavericks
+    sha1 "51e55866a2810d4544ad4004cdd1e2cf2dd4d6f6" => :mountain_lion
+    sha1 "4bb95425d1bca66163b4d212084ae564c13b49d7" => :lion
+  end
 
   env :userpaths
 
@@ -19,60 +26,50 @@ class Nginx < Formula
   option 'with-debug', 'Compile with support for debug log'
   option 'with-spdy', 'Compile with support for SPDY module'
   option 'with-gunzip', 'Compile with support for gunzip module'
+
   option 'with-headersmore', 'Compile with support for ngx_headers_more module'
   option 'with-subs', 'Compile with support for ngx_substitutions_filter module'
 
   depends_on 'pcre'
-  # SPDY needs openssl >= 1.0.1 for NPN; see:
-  # https://tools.ietf.org/agenda/82/slides/tls-3.pdf
-  # http://www.openssl.org/news/changelog.html
-  depends_on 'openssl' if build.with? 'spdy'
-
-  skip_clean 'logs'
-
-  # Changes default port to 8080
-  def patches
-    DATA
-  end
+  depends_on 'passenger' => :optional
+  depends_on 'openssl'
 
   def passenger_config_args
-    passenger_root = `passenger-config --root`.chomp
+    passenger_config = "#{HOMEBREW_PREFIX}/opt/passenger/bin/passenger-config"
+    nginx_ext = `#{passenger_config} --nginx-addon-dir`.chomp
 
-    if File.directory?(passenger_root)
-      return "--add-module=#{passenger_root}/ext/nginx"
+    if File.directory?(nginx_ext)
+      return "--add-module=#{nginx_ext}"
     end
 
-    puts "Unable to install nginx with passenger support. The passenger"
-    puts "gem must be installed and passenger-config must be in your path"
-    puts "in order to continue."
+    puts "Unable to install nginx with passenger support."
     exit
   end
 
   def install
-    cc_opt = "-I#{HOMEBREW_PREFIX}/include"
-    ld_opt = "-L#{HOMEBREW_PREFIX}/lib"
+    # Changes default port to 8080
+    inreplace 'conf/nginx.conf', 'listen       80;', 'listen       8080;'
 
-    if build.with? 'spdy'
-      openssl_path = Formula.factory("openssl").opt_prefix
-      cc_opt += " -I#{openssl_path}/include"
-      ld_opt += " -L#{openssl_path}/lib"
-    end
+    pcre = Formula["pcre"]
+    openssl = Formula["openssl"]
+    cc_opt = "-I#{pcre.include} -I#{openssl.include}"
+    ld_opt = "-L#{pcre.lib} -L#{openssl.lib}"
 
     if build.with? 'headersmore'
       cd '/tmp' do
-        rm_rf "headers-more-nginx-module-0.21"
-        rm_rf "headers-more-nginx-module-0.21.tar.gz"
-        curl '-s', '-o', 'headers-more-nginx-module-0.21.tar.gz', 'https://github.com/agentzh/headers-more-nginx-module/archive/v0.21.tar.gz'
-        system "tar", ['-xzf', 'headers-more-nginx-module-0.21.tar.gz']
+        rm_rf "headers-more-nginx-module-0.25"
+        rm_rf "headers-more-nginx-module-0.25.tar.gz"
+        curl '-s', '-o', 'headers-more-nginx-module-0.25.tar.gz', 'https://github.com/agentzh/headers-more-nginx-module/archive/v0.25.tar.gz'
+        system "tar", ['-xzf', 'headers-more-nginx-module-0.25.tar.gz']
       end
     end
 
     if build.with? 'subs'
       cd '/tmp' do
-        rm_rf "ngx_http_substitutions_filter_module-0.6.2"
-        rm_rf "ngx_http_substitutions_filter_module-0.6.2.tar.gz"
-        curl '-s', '-o', 'ngx_http_substitutions_filter_module-0.6.2.tar.gz', 'https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/0.6.2.tar.gz'
-        system "tar", ['-xzf', 'ngx_http_substitutions_filter_module-0.6.2.tar.gz']
+        rm_rf "ngx_http_substitutions_filter_module-0.6.4"
+        rm_rf "ngx_http_substitutions_filter_module-0.6.4.tar.gz"
+        curl '-s', '-o', 'ngx_http_substitutions_filter_module-0.6.4.tar.gz', 'https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/0.6.4.tar.gz'
+        system "tar", ['-xzf', 'ngx_http_substitutions_filter_module-0.6.4.tar.gz']
       end
     end
 
@@ -91,17 +88,19 @@ class Nginx < Formula
             "--http-fastcgi-temp-path=#{var}/run/nginx/fastcgi_temp",
             "--http-uwsgi-temp-path=#{var}/run/nginx/uwsgi_temp",
             "--http-scgi-temp-path=#{var}/run/nginx/scgi_temp",
-            "--http-log-path=#{var}/log/nginx",
+            "--http-log-path=#{var}/log/nginx/access.log",
+            "--error-log-path=#{var}/log/nginx/error.log",
             "--with-http_gzip_static_module"
           ]
 
-    args << passenger_config_args if build.include? 'with-passenger'
-    args << "--with-http_dav_module" if build.include? 'with-webdav'
-    args << "--with-debug" if build.include? 'with-debug'
-    args << "--with-http_spdy_module" if build.include? 'with-spdy'
-    args << "--with-http_gunzip_module" if build.include? 'with-gunzip'
-    args << "--add-module=/tmp/headers-more-nginx-module-0.21" if build.include? 'with-headersmore'
-    args << "--add-module=/tmp/ngx_http_substitutions_filter_module-0.6.2" if build.include? 'with-subs'
+    args << passenger_config_args if build.with? "passenger"
+    args << "--with-http_dav_module" if build.with? "webdav"
+    args << "--with-debug" if build.with? "debug"
+    args << "--with-http_spdy_module" if build.with? "spdy"
+    args << "--with-http_gunzip_module" if build.with? "gunzip"
+
+    args << "--add-module=/tmp/headers-more-nginx-module-0.25" if build.include? 'with-headersmore'
+    args << "--add-module=/tmp/ngx_http_substitutions_filter_module-0.6.4" if build.include? 'with-subs'
 
     if build.head?
       system "./auto/configure", *args
@@ -119,45 +118,58 @@ class Nginx < Formula
     if build.with? 'subs'
       rm_rf "/tmp/ngx_http_substitutions_filter_module-0.6.2"
     end
+  end
 
-    # nginx’s docroot is #{prefix}/html, this isn't useful, so we symlink it
+  def post_install
+    # nginx's docroot is #{prefix}/html, this isn't useful, so we symlink it
     # to #{HOMEBREW_PREFIX}/var/www. The reason we symlink instead of patching
     # is so the user can redirect it easily to something else if they choose.
-    prefix.cd do
-      dst = HOMEBREW_PREFIX/"var/www"
-      if not dst.exist?
-        dst.dirname.mkpath
-        mv "html", dst
-      else
-        rm_rf "html"
-        dst.mkpath
-      end
-      Pathname.new("#{prefix}/html").make_relative_symlink(dst)
+    html = prefix/"html"
+    dst  = var/"www"
+
+    if dst.exist?
+      html.rmtree
+      dst.mkpath
+    else
+      dst.dirname.mkpath
+      html.rename(dst)
     end
 
-    # for most of this formula’s life the binary has been placed in sbin
+    prefix.install_symlink dst => "html"
+
+    # for most of this formula's life the binary has been placed in sbin
     # and Homebrew used to suggest the user copy the plist for nginx to their
     # ~/Library/LaunchAgents directory. So we need to have a symlink there
     # for such cases
-    if (HOMEBREW_CELLAR/'nginx').subdirs.any?{|d| (d/:sbin).directory? }
-      sbin.mkpath
-      sbin.cd do
-        (sbin/'nginx').make_relative_symlink(bin/'nginx')
-      end
+    if rack.subdirs.any? { |d| (d/:sbin).directory? }
+      sbin.install_symlink bin/"nginx"
     end
   end
 
-  def caveats; <<-EOS.undent
-    Docroot is: #{HOMEBREW_PREFIX}/var/www
+  test do
+    system "#{bin}/nginx", '-t'
+  end
 
-    The default port has been set to 8080 so that nginx can run without sudo.
+  def passenger_caveats; <<-EOS.undent
 
-    If you want to host pages on your local machine to the wider network you
-    can change the port to 80 in: #{HOMEBREW_PREFIX}/etc/nginx/nginx.conf
-
-    You will then need to run nginx as root: `sudo nginx`.
+    To activate Phusion Passenger, add this to #{etc}/nginx/nginx.conf:
+      passenger_root #{HOMEBREW_PREFIX}/opt/passenger/libexec/lib/phusion_passenger/locations.ini
+      passenger_ruby /usr/bin/ruby
     EOS
   end
+
+  def caveats
+    s = <<-EOS.undent
+    Docroot is: #{HOMEBREW_PREFIX}/var/www
+
+    The default port has been set in #{HOMEBREW_PREFIX}/etc/nginx/nginx.conf to 8080 so that
+    nginx can run without sudo.
+    EOS
+    s << passenger_caveats if build.with? 'passenger'
+    s
+  end
+
+  plist_options :manual => 'nginx'
 
   def plist; <<-EOS.undent
     <?xml version="1.0" encoding="UTF-8"?>
@@ -172,7 +184,7 @@ class Nginx < Formula
         <false/>
         <key>ProgramArguments</key>
         <array>
-            <string>#{opt_prefix}/bin/nginx</string>
+            <string>#{opt_bin}/nginx</string>
             <string>-g</string>
             <string>daemon off;</string>
         </array>
@@ -183,16 +195,3 @@ class Nginx < Formula
     EOS
   end
 end
-
-__END__
---- a/conf/nginx.conf
-+++ b/conf/nginx.conf
-@@ -33,7 +33,7 @@
-     #gzip  on;
-
-     server {
--        listen       80;
-+        listen       8080;
-         server_name  localhost;
-
-         #charset koi8-r;
