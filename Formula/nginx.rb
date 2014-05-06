@@ -68,7 +68,7 @@ class Nginx < Formula
       cd '/tmp' do
         rm_rf "ngx_http_substitutions_filter_module-0.6.4"
         rm_rf "ngx_http_substitutions_filter_module-0.6.4.tar.gz"
-        curl '-s', '-o', 'ngx_http_substitutions_filter_module-0.6.4.tar.gz', 'https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/0.6.4.tar.gz'
+        curl '-s', '-o', 'ngx_http_substitutions_filter_module-0.6.4.tar.gz', 'https://github.com/yaoweibin/ngx_http_substitutions_filter_module/archive/v0.6.4.tar.gz'
         system "tar", ['-xzf', 'ngx_http_substitutions_filter_module-0.6.4.tar.gz']
       end
     end
@@ -113,10 +113,10 @@ class Nginx < Formula
     (var/'run/nginx').mkpath
 
     if build.with? 'headersmore'
-      rm_rf "/tmp/headers-more-nginx-module-0.21"
+      rm_rf "/tmp/headers-more-nginx-module-0.25"
     end
     if build.with? 'subs'
-      rm_rf "/tmp/ngx_http_substitutions_filter_module-0.6.2"
+      rm_rf "/tmp/ngx_http_substitutions_filter_module-0.6.4"
     end
   end
 
